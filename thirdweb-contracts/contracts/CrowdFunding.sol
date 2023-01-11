@@ -6,7 +6,7 @@ pragma solidity ^0.8.9;
 contract CrowdFunding {
     constructor() {}
 
-    // creates a Campaign object to store the variables
+    // defines a struct that will be used to store the variables for each campaign
     struct Campaign {
         address owner;
         string title;
@@ -18,12 +18,15 @@ contract CrowdFunding {
         uint256[] donations;
     }
 
-    //assign a number to each campaign
+    //assigns a unique number to each campaign, and is accessible to anyone
     mapping(uint256 => Campaign) public campaigns;
+
+    // stores the total amount of donations of each user across multiple campaigns
+    mapping(address => mapping(uint256 => uint256)) public userDonations;
 
     uint256 numberOfCampaigns = 0;
 
-    // creates a campaign and returns a campaign id
+    // allows anyone to create a campaign and it returns a campaign ID
     function createCampaign(
         address _owner,
         string memory _title,
@@ -32,41 +35,64 @@ contract CrowdFunding {
         uint256 _deadline,
         string memory _image
     ) public returns (uint256) {
-        Campaign storage campaign = campaigns[numberofCampaigns];
+        //checks that the campaign's deadline is in the future and the target is greater than zero
         require(
-            campaign.deadline < block.timestamp,
+            block.timestamp < _deadline,
             "The deadline should be a date in the future."
         );
-
+        require(
+            _target > 0,
+            "The campaign should have a target greater than 0."
+        );
+        Campaign storage campaign = campaigns[numberOfCampaigns];
         campaign.owner = _owner;
         campaign.title = _title;
         campaign.description = _description;
         campaign.deadline = _deadline;
         campaign.amountCollected = 0;
         campaign.image = _image;
-
         numberOfCampaigns++;
-
         return numberOfCampaigns - 1;
     }
 
-    // donate to a campaign and store the address and amount
+    //allows users to make donations to a specific campaign identified by its ID
     function donateToCampaign(uint256 _id) public payable {
-        uint256 amount = msg.value;
-
+        //checks if the campaign ID exists
+        require(_id < numberOfCampaigns, "Campaign ID does not exist.");
         Campaign storage campaign = campaigns[_id];
-
+        require(
+            block.timestamp < campaign.deadline,
+            "Campaign deadline has passed."
+        );
+        //updates the userDonations, donators, donations and amountCollected fields of the Campaign struct and also the userDonations mapping
+        uint256 amount = msg.value;
+        userDonations[msg.sender][_id] += amount;
         campaign.donators.push(msg.sender);
         campaign.donations.push(amount);
-
-        (bool sent, ) = payable(campaign.owner).call{value: amount}("");
-
-        if (sent) {
-            campaign.amountCollected = campaign.amountCollected + amount;
-        }
+        campaign.amountCollected += amount;
     }
 
-    function getDonators() public {}
+    function getDonators(uint256 _id) public view returns (address[] memory) {
+        Campaign storage campaign = campaigns[_id];
+        return campaign.donators;
+    }
 
-    function getCampaigns() public {}
+    function getCampaigns() public view returns (Campaign[] memory) {
+        Campaign[] memory campaignsArray = new Campaign[](numberOfCampaigns);
+        for (uint256 i = 0; i < numberOfCampaigns; i++) {
+            campaignsArray[i] = campaigns[i];
+        }
+        return campaignsArray;
+    }
+
+    function withdrawFunds(uint256 _id) public {
+        require(_id < numberOfCampaigns, "Campaign ID does not exist.");
+        Campaign storage campaign = campaigns[_id];
+        require(
+            msg.sender == campaign.owner,
+            "Only the campaign owner can withdraw funds."
+        );
+        require(campaign.amountCollected > 0, "No funds to withdraw.");
+        payable(msg.sender).transfer(campaign.amountCollected);
+    }
 }
