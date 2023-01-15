@@ -21,9 +21,6 @@ contract CrowdFunding {
     //assigns a unique number to each campaign, and is accessible to anyone
     mapping(uint256 => Campaign) public campaigns;
 
-    // stores the total amount of donations of each user across multiple campaigns
-    mapping(address => mapping(uint256 => uint256)) public userDonations;
-
     uint256 numberOfCampaigns = 0;
 
     // allows anyone to create a campaign and it returns a campaign ID
@@ -64,25 +61,27 @@ contract CrowdFunding {
             block.timestamp < campaign.deadline,
             "Campaign deadline has passed."
         );
-        //updates the userDonations, donators, donations and amountCollected fields of the Campaign struct and also the userDonations mapping
+        //updates the userDonations, donators, donations and amountCollected
         uint256 amount = msg.value;
-        userDonations[msg.sender][_id] += amount;
         campaign.donators.push(msg.sender);
         campaign.donations.push(amount);
         campaign.amountCollected += amount;
     }
 
-    function getDonators(uint256 _id) public view returns (address[] memory) {
-        Campaign storage campaign = campaigns[_id];
-        return campaign.donators;
+    // returns donators and the amount donated
+    function getDonators(
+        uint256 _id
+    ) public view returns (address[] memory, uint256[] memory) {
+        return (campaigns[_id].donators, campaigns[_id].donations);
     }
 
     function getCampaigns() public view returns (Campaign[] memory) {
-        Campaign[] memory campaignsArray = new Campaign[](numberOfCampaigns);
+        Campaign[] memory allCampaigns = new Campaign[](numberOfCampaigns);
         for (uint256 i = 0; i < numberOfCampaigns; i++) {
-            campaignsArray[i] = campaigns[i];
+            Campaign storage item = campaigns[i];
+            allCampaigns[i] = item;
         }
-        return campaignsArray;
+        return allCampaigns;
     }
 
     function withdrawFunds(uint256 _id) public {
